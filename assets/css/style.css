@@ -844,7 +844,6 @@ body{overflow-x:clip}
 .tap-ripple{position:fixed;width:58px;height:58px;margin:-29px 0 0 -29px;border:1px solid var(--gold-hi,#D9B48A);border-radius:50%;pointer-events:none;z-index:9999;animation:tapr .7s cubic-bezier(.22,1,.36,1) forwards}
 @keyframes tapr{from{transform:scale(.2);opacity:.95}to{transform:scale(1.7);opacity:0}}
 /* ventures */
-.acc-dim{position:absolute;inset:0;background:#14100E;opacity:0;pointer-events:none;z-index:3}
 @media (min-width:721px){
   .touch .acc{display:flex;height:clamp(440px,52vw,580px);gap:10px}
   .touch .acc .acc-item,.touch .acc .acc-item:first-child{flex:.7!important;height:auto;grid-column:auto;cursor:pointer}
@@ -859,12 +858,12 @@ body{overflow-x:clip}
 }
 @media (max-width:720px){
   .touch .acc{display:flex;flex-direction:column;gap:18px;height:auto}
-  .touch .acc-item{position:sticky;top:calc(78px + var(--i,0) * 12px);height:min(62vh,440px);flex:none!important;box-shadow:0 -16px 40px rgba(20,16,14,.18)}
+  .touch .acc-item{height:min(60vh,420px);flex:none!important;box-shadow:0 18px 40px rgba(20,16,14,.16)}
   .touch .acc-item p{max-height:140px;opacity:1}
 }
 /* ring gallery on phones: bigger cards, deeper perspective */
 @media (max-width:720px){
-  .ring-sec .ring-stage{height:min(108vw,420px);margin-top:-28px}
+  .ring-sec .ring-stage{height:min(108vw,420px);margin-top:0}
 }
 /* fly-through fallback grid (reduced motion only) never wider than the screen */
 .fly.fly-static .fly-stage{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -891,4 +890,31 @@ body{overflow-x:clip}
   .tl3 .logo-box img{max-width:100%;max-height:44px}
   .tl3 .y{font-size:24px}
   .tl3 .e{font-size:11px}
+}
+
+/* v5b: Greens configuration row on phones: one shared label above 1 / 2 / 3 BHK (labels no longer collide) */
+@media (max-width:720px){
+  .facts.facts-cfg{grid-template-columns:repeat(3,minmax(0,1fr));position:relative;padding-top:50px}
+  .facts.facts-cfg > div{border-right:1px solid var(--line);border-bottom:0;padding:2px 14px 24px;gap:0}
+  .facts.facts-cfg > div:nth-child(3){border-right:0}
+  .facts.facts-cfg > div:first-child dt{position:absolute;left:14px;top:20px;white-space:nowrap}
+  .facts.facts-cfg > div:not(:first-child):not(.facts-cta) dt{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+  .facts.facts-cfg dd{font-size:clamp(24px,7.4vw,30px);white-space:nowrap}
+  .facts.facts-cfg .facts-cta{grid-column:1/-1;border-right:0;border-top:1px solid var(--line);padding:22px 0}
+}
+
+/* v5c: every text stays readable while things move */
+.ring-sec .row-head{position:relative;z-index:3}
+.ring figure figcaption{opacity:0;transition:opacity .35s}
+.ring figure.cap-on figcaption{opacity:1}
+.fly .fly-title{z-index:6}
+.fly .fly-title h2,.fly .fly-title .eyebrow{text-shadow:0 4px 28px rgba(0,0,0,.6)}
+.fly .fly-item figcaption{opacity:0;transition:opacity .3s}
+.fly .fly-item.cap-on figcaption,.fly.fly-static .fly-item figcaption{opacity:1}
+@media (min-width:721px){
+  .touch .acc-item.active .acc-txt{animation:accTxtIn .55s .5s both}
+}
+@keyframes accTxtIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media (min-width:721px){
+  .touch .acc-item:not(.active) .acc-tag,.touch .acc-item:not(.active) p{transition:none}
 }

@@ -363,8 +363,17 @@
     // film expand
     $$("[data-film]").forEach(function (sec) {
       var frame = sec.querySelector(".f-frame"), vid = sec.querySelector("video"), title = sec.querySelector(".f-title");
-      var t = gsap.timeline({ scrollTrigger: { trigger: sec, start: "top top", end: "bottom bottom", scrub: true } });
-      t.fromTo(frame, { clipPath: "inset(18% 24% 18% 24%)" }, { clipPath: "inset(0% 0% 0% 0%)", ease: "power2.inOut" }, 0)
+      // the opening window is always wide/tall enough for the title, so no part of it ever sits outside the video
+      var startClip = function () {
+        var fw = frame.clientWidth || innerWidth, fh = frame.clientHeight || innerHeight;
+        var inner = title && title.firstElementChild, tw = 0, th = 0;
+        if (inner) { $$("h2,button", inner).forEach(function (n) { tw = Math.max(tw, n.offsetWidth); }); th = inner.offsetHeight; }
+        var ix = clamp(((fw - tw * 0.85 - 48) / 2) / fw * 100, 3, 24);
+        var iy = clamp(((fh - th * 0.85 - 56) / 2) / fh * 100, 3, fw < 721 ? 24 : 18);
+        return "inset(" + iy.toFixed(2) + "% " + ix.toFixed(2) + "% " + iy.toFixed(2) + "% " + ix.toFixed(2) + "%)";
+      };
+      var t = gsap.timeline({ scrollTrigger: { trigger: sec, start: "top top", end: "bottom bottom", scrub: true, invalidateOnRefresh: true } });
+      t.fromTo(frame, { clipPath: startClip }, { clipPath: "inset(0% 0% 0% 0%)", ease: "power2.inOut" }, 0)
        .fromTo(vid, { scale: 1.3 }, { scale: 1, ease: "power2.inOut" }, 0)
        .fromTo(title, { scale: 0.85, autoAlpha: 0.4 }, { scale: 1, autoAlpha: 1, ease: "power2.out" }, 0);
     });
@@ -423,6 +432,13 @@
       scrollBoost *= 0.92;
       var tx = tiltX + (touch ? vp.gy * 6 : 0);
       ringEl.style.transform = "translateZ(" + (-stage.__radius * 1.1) + "px) rotateX(" + tx + "deg) rotateY(" + rot + "deg)";
+      // captions only on cards facing the viewer (never half-hidden behind a neighbour); on phones just the front card
+      var best = -2, bi = -1, narrowR = stage.clientWidth < 721, minCos = narrowR ? 0.86 : 0.9;
+      var cosv = items.map(function (f, i) { var c = Math.cos((i * 360 / n + rot) * Math.PI / 180); if (c > best) { best = c; bi = i; } return c; });
+      items.forEach(function (f, i) {
+        var on = narrowR ? (i === bi && cosv[i] > minCos) : cosv[i] > minCos;
+        if (f.__cap !== on) { f.__cap = on; f.classList.toggle("cap-on", on); }
+      });
       if (!reduce) requestAnimationFrame(frame);
     }
     frame();
@@ -451,18 +467,33 @@
     }
     place();
     var count = sec.querySelector("[data-fly-count]");
+    // the opening title gets the first part of the scroll on its own; the photos start flying only once it has faded,
+    // so the title and the photos never sit on top of each other
+    var P0 = 0.12;
     function update(p) {
-      var travel = p * ((items.length - 1) * depth + 400);
+      var titleOp = clamp(1 - p / (P0 * 0.8), 0, 1);
+      var gate = clamp((p - P0 * 0.7) / (P0 * 0.3), 0, 1);
+      var q = clamp((p - P0) / (1 - P0), 0, 1);
+      var travel = q * ((items.length - 1) * depth + 400);
       items.forEach(function (it, i) {
         var z = pos[i].z + travel;
         var o = z > 300 ? Math.max(0, 1 - (z - 300) / 500) : z < -5000 ? 0 : Math.min(1, (z + 5000) / 2000);
+        o *= gate;
         it.style.transform = "translate(-50%,-50%) translate3d(" + pos[i].x + "vw," + pos[i].y + "vh," + z + "px)";
         it.style.opacity = o;
         it.style.visibility = o < 0.01 ? "hidden" : "visible";
       });
-      if (count) { var idx = Math.min(items.length, Math.max(1, Math.round(p * (items.length - 1)) + 1)); count.textContent = String(idx).padStart(2, "0") + " / " + String(items.length).padStart(2, "0"); }
+      // captions: only the front photo shows its caption, and only once nothing is flying past in front of it
+      var capIdx = -1, zBest = -Infinity, passing = 0;
+      items.forEach(function (it, i) {
+        var z = pos[i].z + travel;
+        if (z > 120) passing = Math.max(passing, parseFloat(it.style.opacity) || 0);
+        else if (z > -2600 && z > zBest) { zBest = z; capIdx = i; }
+      });
+      items.forEach(function (it, i) { it.classList.toggle("cap-on", i === capIdx && passing < 0.12 && titleOp < 0.02 && gate > 0.9); });
+      if (count) { var idx = Math.min(items.length, Math.max(1, Math.round(q * (items.length - 1)) + 1)); count.textContent = String(idx).padStart(2, "0") + " / " + String(items.length).padStart(2, "0"); }
       var title = sec.querySelector(".fly-title");
-      if (title) title.style.opacity = Math.max(0, 1 - p * 6);
+      if (title) title.style.opacity = titleOp;
     }
     update(0);
     if (hasGsap && window.ScrollTrigger && !reduce) {
@@ -489,19 +520,15 @@
     if (!reduce) setInterval(function () { if (inView && !phone.matches && performance.now() > holdUntil) setActive((ai + 1) % items.length); }, 3200);
     items.forEach(function (it, k) {
       it.addEventListener("click", function () { if (phone.matches) return; setActive(k); holdUntil = performance.now() + 9000; });
-      var dim = document.createElement("i"); dim.className = "acc-dim"; dim.setAttribute("aria-hidden", "true"); it.appendChild(dim);
-      it.style.setProperty("--i", k);
     });
     if (!hasGsap || !window.ScrollTrigger || reduce) return;
+    // phones: each card swings up in 3D as it enters (cards never cover one another, so every word stays readable)
     gsap.matchMedia().add("(max-width:720px)", function () {
-      items.forEach(function (it, i) {
+      items.forEach(function (it) {
         var bg = it.querySelector(":scope > img:not(.card)");
         if (bg) gsap.fromTo(bg, { scale: 1.18, yPercent: -4 }, { scale: 1.04, yPercent: 4, ease: "none", scrollTrigger: { trigger: it, start: "top bottom", end: "bottom top", scrub: true } });
-        var next = items[i + 1];
-        if (!next) return;
-        var endTop = function () { return "top " + (parseFloat(getComputedStyle(next).top) || 90) + "px"; };
-        gsap.to(it, { scale: 0.9, rotationX: 6, transformPerspective: 900, transformOrigin: "50% 0%", ease: "none", scrollTrigger: { trigger: next, start: "top bottom", end: endTop, scrub: true, invalidateOnRefresh: true } });
-        gsap.to(it.querySelector(".acc-dim"), { opacity: 0.55, ease: "none", scrollTrigger: { trigger: next, start: "top bottom", end: endTop, scrub: true, invalidateOnRefresh: true } });
+        gsap.fromTo(it, { rotationX: 24, scale: 0.9, transformPerspective: 900, transformOrigin: "50% 100%" },
+          { rotationX: 0, scale: 1, ease: "none", scrollTrigger: { trigger: it, start: "top bottom", end: "top 60%", scrub: true } });
       });
     });
   });
@@ -529,7 +556,7 @@
       gsap.fromTo(fill, { scaleY: 0 }, { scaleY: 1, ease: "none", scrollTrigger: { trigger: tl, start: "top 65%", end: "bottom 55%", scrub: true } });
       ms.forEach(function (m, k) {
         var side = k % 2 === 0 ? -1 : 1;
-        gsap.fromTo(m.querySelector(".card"), { x: side * 70, rotationY: side * -55, autoAlpha: 0, transformPerspective: 700 },
+        gsap.fromTo(m.querySelector(".card"), { x: side * 32, rotationY: side * -45, autoAlpha: 0, transformPerspective: 700 },
           { x: 0, rotationY: 0, autoAlpha: 1, duration: 1.1, ease: "power3.out", scrollTrigger: { trigger: m, start: "top 90%" } });
       });
     });
